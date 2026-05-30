@@ -1,0 +1,4 @@
+from app.repositories.event_repository import event_repo
+from app.repositories.visitor_repository import visitor_repo
+from app.repositories.anomaly_repository import anomaly_repo
+from app.repositories.metrics_repository import metrics_repo

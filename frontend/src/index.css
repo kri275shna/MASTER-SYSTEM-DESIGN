@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-slate-950 text-slate-100 font-sans;
+    background-image: radial-gradient(circle at 50% 0%, #1e1145 0%, #020617 70%);
+    background-attachment: fixed;
+  }
+}
+
+/* Glassmorphism Card Style */
+.glass-panel {
+  @apply bg-slate-900/60 border border-slate-800/80 backdrop-blur-xl shadow-xl rounded-2xl;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-panel:hover {
+  @apply border-purplle-500/40 shadow-purplle-500/5;
+}
+
+/* Glow effects */
+.glow-text-purple {
+  text-shadow: 0 0 12px rgba(155, 93, 229, 0.4);
+}
+
+.glow-border-purple {
+  box-shadow: 0 0 20px rgba(155, 93, 229, 0.15);
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-slate-950;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-800 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-purplle-600;
+}
+
+/* Animations */
+@keyframes pulse-slow {
+  0%, 100% { opacity: 0.25; }
+  50% { opacity: 0.6; }
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
