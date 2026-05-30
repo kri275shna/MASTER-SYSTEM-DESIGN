@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Purplle Store Intelligence - Local Demo</title>
+  
+  <!-- React & Babel Standalone (for in-browser JSX parsing) -->
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  
+  <!-- Tailwind CSS & Lucide Icons CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Google Fonts: Inter -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-image: radial-gradient(circle at 50% 0%, #1e1145 0%, #020617 70%);
+      background-attachment: fixed;
+    }
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid rgba(51, 65, 85, 0.5);
+      backdrop-filter: blur(16px);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      border-radius: 1rem;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .glass-panel:hover {
+      border-color: rgba(155, 93, 229, 0.4);
+      box-shadow: 0 10px 40px rgba(155, 93, 229, 0.05);
+    }
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #020617;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #7b2cbf;
+    }
+  </style>
+</head>
+<body class="text-slate-100 min-h-screen">
+
+  <div id="root"></div>
+
+  <!-- JSX Script parsed by Babel -->
+  <script type="text/babel">
+    const API_HOST = 'http://localhost:8000';
+    const DEFAULT_STORE_ID = 'store-mumbai-01';
+
+    function App() {
+      const [token, setToken] = React.useState(localStorage.getItem('access_token') || '');
+      const [userRole, setUserRole] = React.useState(localStorage.getItem('user_role') || '');
+      const [email, setEmail] = React.useState('admin@purplle.com');
+      const [password, setPassword] = React.useState('admin123');
+      const [loginError, setLoginError] = React.useState('');
+      const [isLoggingIn, setIsLoggingIn] = React.useState(false);
+
+      // Data States
+      const [metrics, setMetrics] = React.useState(null);
+      const [funnel, setFunnel] = React.useState(null);
+      const [heatmap, setHeatmap] = React.useState([]);
+      const [anomalies, setAnomalies] = React.useState([]);
+      const [cameras, setCameras] = React.useState([]);
+      const [recentEvents, setRecentEvents] = React.useState([]);
+      const [wsStatus, setWsStatus] = React.useState('CONNECTING');
+      const [simulationStatus, setSimulationStatus] = React.useState('Idle');
+      
+      const socketRef = React.useRef(null);
+
+      // Resolve API headers
+      const getHeaders = React.useCallback(() => {
+        return {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        };
+      }, [token]);
+
+      // Load data
+      const fetchDashboardData = React.useCallback(async () => {
+        if (!token) return;
+        try {
+          const headers = getHeaders();
+          
+          const mResp = await fetch(`${API_HOST}/api/v1/stores/${DEFAULT_STORE_ID}/metrics`, { headers });
+          if (mResp.ok) setMetrics(await mResp.json());
+          
+          const fResp = await fetch(`${API_HOST}/api/v1/stores/${DEFAULT_STORE_ID}/funnel`, { headers });
+          if (fResp.ok) setFunnel(await fResp.json());
+          
+          const hResp = await fetch(`${API_HOST}/api/v1/stores/${DEFAULT_STORE_ID}/heatmap`, { headers });
+          if (hResp.ok) setHeatmap(await hResp.json());
+          
+          const aResp = await fetch(`${API_HOST}/api/v1/stores/${DEFAULT_STORE_ID}/anomalies`, { headers });
+          if (aResp.ok) setAnomalies(await aResp.json());
+
+          const cResp = await fetch(`${API_HOST}/api/v1/stores/${DEFAULT_STORE_ID}/cameras`, { headers });
+          if (cResp.ok) setCameras(await cResp.json());
+        } catch (err) {
+          console.error("Error fetching local dashboard stats:", err);
+        }
+      }, [token, getHeaders]);
+
+      // WebSocket Connection Setup
+      React.useEffect(() => {
+        if (!token) return;
+
+        if (socketRef.current) {
+          socketRef.current.close();
+        }
+
+        setWsStatus('CONNECTING');
+        const wsUrl = `ws://localhost:8000/api/v1/events/stores/${DEFAULT_STORE_ID}/events/stream`;
+        const ws = new WebSocket(wsUrl);
+        socketRef.current = ws;
+
+        ws.onopen = () => {
+          setWsStatus('CONNECTED');
+        };
+
+        ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            setRecentEvents(prev => [data, ...prev].slice(0, 5));
+            if (data.event_type === 'ANOMALY_ALERT') {
+              setAnomalies(prev => {
+                if (prev.find(a => a.id === data.payload.id)) return prev;
+                return [data.payload, ...prev];
+              });
+            } else {
+              fetchDashboardData();
+            }
+          } catch (err) {
+            console.error("Error parsing websocket packet:", err);
+          }
+        };
+
+        ws.onclose = () => {
+          setWsStatus('DISCONNECTED');
+          // Reconnect attempt in 3s
+          setTimeout(() => {
+            fetchDashboardData();
+          }, 3000);
+        };
+
+        return () => ws.close();
+      }, [token, fetchDashboardData]);
+
+      React.useEffect(() => {
+        if (token) {
+          fetchDashboardData();
+        }
+      }, [token, fetchDashboardData]);
+
+      // Login handler
+      const handleLogin = async (e) => {
+        e.preventDefault();
+        setLoginError('');
+        setIsLoggingIn(true);
+
+        try {
+          const response = await fetch(`${API_HOST}/api/v1/auth/login-json`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            localStorage.setItem('access_token', data.access_token);
+            localStorage.setItem('user_role', data.role);
+            setToken(data.access_token);
+            setUserRole(data.role);
+          } else {
+            const err = await response.json();
+            setLoginError(err.detail || 'Access validation failed');
+          }
+        } catch (err) {
+          setLoginError('FastAPI server connection error. Verify Uvicorn runs on port 8000.');
+        } finally {
+          setIsLoggingIn(false);
+        }
+      };
+
+      const handleLogout = () => {
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('user_role');
+        setToken('');
+        setUserRole('');
+      };
+
+      // Resolve anomaly
+      const resolveAnomaly = async (anomalyId, actionText) => {
+        try {
+          const response = await fetch(`${API_HOST}/api/v1/stores/${DEFAULT_STORE_ID}/anomalies/${anomalyId}/resolve?action_taken=${encodeURIComponent(actionText)}`, {
+            method: 'POST',
+            headers: getHeaders()
+          });
+          if (response.ok) {
+            setAnomalies(prev => prev.filter(a => a.id !== anomalyId));
+            fetchDashboardData();
+          }
+        } catch (err) {
+          console.error("Error resolving anomaly:", err);
+        }
+      };
+
+      // Simulator Dispatcher
+      const triggerSimulation = async () => {
+        setSimulationStatus('Dispatched...');
+        try {
+          const timestamp = new Date().toISOString();
+          const visitor = `visitor-sim-${Math.floor(Math.random() * 1000)}`;
+          const headers = getHeaders();
+          
+          await fetch(`${API_HOST}/api/v1/events/ingest`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              store_id: DEFAULT_STORE_ID,
+              camera_id: 'cam-entry',
+              event_type: 'ENTRY',
+              timestamp,
+              payload: { visitor_id: visitor, is_staff: false }
+            })
+          });
+
+          setSimulationStatus('Entry Dispatched!');
+          setTimeout(() => setSimulationStatus('Idle'), 2000);
+        } catch (err) {
+          setSimulationStatus('Fail');
+          setTimeout(() => setSimulationStatus('Idle'), 2000);
+        }
+      };
+
+      // Replace Lucide icons helper
+      React.useEffect(() => {
+        if (window.lucide) {
+          window.lucide.createIcons();
+        }
+      });
+
+      if (!token) {
+        return (
+          <div className="min-h-screen flex items-center justify-center px-4 relative">
+            <div className="w-full max-w-md glass-panel p-8">
+              <div className="flex flex-col items-center mb-8">
+                <span className="text-3xl font-extrabold text-white tracking-wider uppercase flex items-center gap-2">
+                  <span className="text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-lg border border-purple-500/25">P</span>
+                  Purplle <span className="text-purple-400">Intel</span>
+                </span>
+                <p className="text-xs text-slate-400 mt-2 text-center">FastAPI + React Zero-Install Local Dashboard</p>
+              </div>
+
+              {loginError && (
+                <div className="bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs p-3 rounded-lg mb-4 text-center">
+                  {loginError}
+                </div>
+              )}
+
+              <form onSubmit={handleLogin} className="space-y-5">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Username Email</label>
+                  <input 
+                    type="email" 
+                    className="w-full bg-slate-950 border border-slate-800 focus:border-purple-500/60 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none transition-all"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Password</label>
+                  <input 
+                    type="password" 
+                    className="w-full bg-slate-950 border border-slate-800 focus:border-purple-500/60 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none transition-all"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <button 
+                  type="submit" 
+                  className="w-full bg-purple-600 hover:bg-purple-500 active:scale-95 text-white py-3 rounded-xl text-sm font-semibold tracking-wide shadow-lg shadow-purple-500/10 hover:shadow-purple-500/20 transition-all"
+                >
+                  {isLoggingIn ? 'Logging in...' : 'Sign In'}
+                </button>
+              </form>
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div className="min-h-screen pb-12">
+          {/* Header */}
+          <header className="border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-md sticky top-0 z-50">
+            <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+              <div className="flex items-center gap-6">
+                <span className="text-xl font-extrabold text-white tracking-wider flex items-center gap-2">
+                  <span className="text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-lg border border-purple-500/25">P</span>
+                  Purplle Intel
+                </span>
+                <span className="bg-slate-900 border border-slate-800 text-slate-400 text-xs px-3 py-1 rounded-xl">
+                  Store: <strong className="text-white">Bandra (Mumbai)</strong>
+                </span>
+              </div>
+
+              <div className="flex items-center gap-4">
+                <button 
+                  onClick={triggerSimulation}
+                  className="bg-indigo-600/10 hover:bg-indigo-600/20 border border-indigo-500/20 text-indigo-400 text-xs font-semibold px-3 py-1.5 rounded-xl transition-all"
+                >
+                  {simulationStatus === 'Idle' ? 'Dispatch Mock Entry' : simulationStatus}
+                </button>
+
+                <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold ${
+                  wsStatus === 'CONNECTED' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border-amber-500/20 animate-pulse'
+                }`}>
+                  <i data-lucide="radio" className="w-3.5 h-3.5"></i>
+                  <span>{wsStatus}</span>
+                </div>
+
+                <button onClick={handleLogout} className="p-2 bg-slate-900 border border-slate-800 hover:border-rose-500/30 hover:bg-rose-500/10 text-slate-400 hover:text-rose-400 rounded-xl transition-all">
+                  <i data-lucide="log-out" className="w-4 h-4"></i>
+                </button>
+              </div>
+            </div>
+          </header>
+
+          <main className="max-w-7xl mx-auto px-4 mt-8 space-y-6">
+            
+            {/* Event feed */}
+            {recentEvents.length > 0 && (
+              <div className="glass-panel p-4 flex items-center gap-4 overflow-hidden border-indigo-500/15">
+                <span className="text-[10px] uppercase font-black tracking-widest text-indigo-400 bg-indigo-500/10 px-2 py-1 rounded border border-indigo-500/25 flex-shrink-0 animate-pulse">
+                  WebSocket Stream
+                </span>
+                <div className="flex items-center gap-6 overflow-x-auto text-xs whitespace-nowrap scroll-none w-full">
+                  {recentEvents.map((evt, idx) => (
+                    <div key={idx} className="flex items-center gap-2 bg-slate-900/60 border border-slate-800 px-3 py-1 rounded-lg">
+                      <span className="font-semibold text-white">{evt.event_type}</span>
+                      <span className="text-slate-500">Visitor:</span>
+                      <span className="font-mono text-slate-300">{evt.payload?.visitor_id}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Metrics cards */}
+            {metrics && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="glass-panel p-6">
+                  <p className="text-xs font-semibold text-slate-400 uppercase">Conversion Rate</p>
+                  <h3 className="text-3xl font-bold text-white mt-2 text-emerald-400">{metrics.conversion_rate}%</h3>
+                  <p className="text-[10px] text-slate-500 mt-2">Conversion to POS purchase</p>
+                </div>
+                <div className="glass-panel p-6">
+                  <p className="text-xs font-semibold text-slate-400 uppercase">Unique Visitors</p>
+                  <h3 className="text-3xl font-bold text-white mt-2 text-purple-400">{metrics.unique_visitors}</h3>
+                  <p className="text-[10px] text-slate-500 mt-2">Staff interactions excluded</p>
+                </div>
+                <div className="glass-panel p-6">
+                  <p className="text-xs font-semibold text-slate-400 uppercase">Queue Depth</p>
+                  <h3 className="text-3xl font-bold text-white mt-2 text-amber-400">{metrics.queue_depth}</h3>
+                  <p className="text-[10px] text-slate-500 mt-2">Active queue count</p>
+                </div>
+                <div className="glass-panel p-6">
+                  <p className="text-xs font-semibold text-slate-400 uppercase">Average Dwell Time</p>
+                  <h3 className="text-3xl font-bold text-white mt-2 text-indigo-400">{Math.round(metrics.avg_dwell_time_seconds / 60)} min</h3>
+                  <p className="text-[10px] text-slate-500 mt-2">Average time spent inside store</p>
+                </div>
+              </div>
+            )}
+
+            {/* Funnel & Heatmap section */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Funnel */}
+              <div className="glass-panel p-6">
+                <h4 className="text-lg font-semibold text-white mb-6">Shopping Retention Funnel</h4>
+                <div className="space-y-5">
+                  {funnel?.stages.map((stage, idx) => (
+                    <div key={idx}>
+                      <div className="flex justify-between text-xs font-medium mb-1.5">
+                        <span className="text-slate-300">{stage.name}</span>
+                        <span className="text-slate-400">{stage.count} ({stage.percentage}%)</span>
+                      </div>
+                      <div className="h-2.5 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
+                        <div className="h-full bg-purple-500 rounded-full" style={{ width: `${stage.percentage}%` }}></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Heatmap blueprint */}
+              <div className="glass-panel p-6">
+                <h4 className="text-lg font-semibold text-white mb-6">Store Zone Density Map</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  {heatmap.map((zone, idx) => (
+                    <div key={idx} className="p-4 rounded-xl border border-slate-800 bg-slate-900/40 relative">
+                      <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
+                      <h5 className="font-semibold text-slate-200 text-sm">{zone.zone_name}</h5>
+                      <div className="mt-3 grid grid-cols-2 text-xs">
+                        <div>
+                          <p className="text-[9px] text-slate-500 uppercase">Visitors</p>
+                          <p className="font-bold text-white mt-0.5">{zone.visitor_count}</p>
+                        </div>
+                        <div>
+                          <p className="text-[9px] text-slate-500 uppercase">Avg Dwell</p>
+                          <p className="font-bold text-white mt-0.5">{Math.round(zone.avg_dwell_time_seconds)}s</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Anomalies section */}
+            <div className="grid grid-cols-1 gap-6">
+              <div className="glass-panel p-6">
+                <h4 className="text-lg font-semibold text-white mb-6">Operational Anomalies Alerts</h4>
+                {anomalies.length === 0 ? (
+                  <div className="py-8 text-center text-xs text-slate-500 border border-dashed border-slate-800 rounded-xl">
+                    No active anomalies detected
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {anomalies.map((a) => (
+                      <div key={a.id} className="p-4 rounded-xl border border-rose-500/20 bg-rose-500/5 text-rose-400 flex items-center justify-between gap-4">
+                        <div>
+                          <span className="text-[10px] uppercase bg-rose-500/10 px-2 py-0.5 rounded font-black">{a.anomaly_type}</span>
+                          <p className="text-xs text-white font-medium mt-2">{a.message}</p>
+                        </div>
+                        <button 
+                          className="bg-slate-950 text-[10px] font-bold px-3 py-1.5 rounded-lg border border-slate-800 hover:bg-slate-900 text-slate-300 hover:text-white"
+                          onClick={() => {
+                            const desc = prompt("Enter resolution log description:");
+                            if (desc) resolveAnomaly(a.id, desc);
+                          }}
+                        >
+                          Resolve
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            
+          </main>
+        </div>
+      );
+    }
+
+    const container = document.getElementById('root');
+    const root = ReactDOM.createRoot(container);
+    root.render(<App />);
+  </script>
+</body>
+</html>

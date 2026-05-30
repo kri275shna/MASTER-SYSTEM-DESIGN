@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 1 week
     
     # Databases
-    DATABASE_URL: str = Field(default="postgresql://postgres:postgres@localhost:5432/store_intelligence", validation_alias="DATABASE_URL")
+    DATABASE_URL: str = Field(default="sqlite:///./store.db", validation_alias="DATABASE_URL")
     REDIS_URL: str = Field(default="redis://localhost:6379/0", validation_alias="REDIS_URL")
     
     # Computer Vision Settings
