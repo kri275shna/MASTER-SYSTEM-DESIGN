@@ -42,40 +42,50 @@ A production-grade, distributed Store Intelligence Platform designed to process 
 
 ## Getting Started
 
-### Local Setup (FastAPI Backend)
+You can run the application in two modes depending on your local environment:
 
-1. Navigate to the backend directory and create a virtual environment:
+### Option A: Zero-Install Local Demo (No Node.js, Redis, or Docker required)
+Best for quick verification on machines without Node.js or Docker. The backend automatically falls back to an SQLite database (`store.db`) and an in-memory Redis mock.
+
+1. **Activate Backend & Run FastAPI**:
+   ```bash
+   cd backend
+   .\venv\Scripts\activate
+   uvicorn app.main:app --port 8000
+   ```
+   *The database (`store.db`) is auto-initialized and seeded with default stores, cameras, and zones on startup.*
+   *API documentation is available at [http://localhost:8000/docs](http://localhost:8000/docs).*
+
+2. **Serve or Open the Demo Frontend**:
+   * **Via Local HTTP Server**: Run `python -m http.server 3000` in the workspace root and open [http://localhost:3000/localhost_demo.html](http://localhost:3000/localhost_demo.html).
+   * **Direct File Load**: Simply double-click the `localhost_demo.html` file at the root to open it in your browser.
+
+3. **Default Login Credentials**:
+   * **Email**: `admin@purplle.com`
+   * **Password**: `admin123`
+
+---
+
+### Option B: Full Stack Setup (Vite React + Redis + PostgreSQL)
+Best for production deployment and component-based active development.
+
+1. **Start API Backend**:
    ```bash
    cd backend
    python -m venv venv
    .\venv\Scripts\activate
-   ```
-2. Install the python packages:
-   ```bash
    pip install -r requirements.txt
-   ```
-3. Run the FastAPI development server:
-   ```bash
    uvicorn app.main:app --reload --port 8000
    ```
-   *Note: On startup, the backend automatically initializes SQLite/PostgreSQL tables and seeds default users, Mumbai store, and mock shopping zones.*
-4. Open the documentation at [http://localhost:8000/docs](http://localhost:8000/docs).
+   *(Ensure local PostgreSQL and Redis services are running, or update configuration via `.env` file.)*
 
-### Local Setup (React Frontend)
-
-1. Navigate to the frontend directory:
+2. **Start React Frontend**:
    ```bash
    cd frontend
    npm install
-   ```
-2. Run the client dev server:
-   ```bash
    npm run dev
    ```
-3. Open the dashboard in your browser: [http://localhost:3000](http://localhost:3000).
-4. Use the default login credentials:
-   - **Email**: `admin@purplle.com`
-   - **Password**: `admin123`
+   *The Vite dashboard runs at [http://localhost:3000](http://localhost:3000).*
 
 ---
 
