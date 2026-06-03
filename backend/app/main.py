@@ -38,6 +38,15 @@ app.include_router(events.router, prefix=f"{settings.API_V1_STR}/events", tags=[
 app.include_router(stores.router, prefix=f"{settings.API_V1_STR}/stores", tags=["stores"])
 app.include_router(health.router, prefix=f"{settings.API_V1_STR}/health", tags=["health"])
 
+@app.get("/")
+def read_root():
+    return {
+        "status": "online",
+        "message": "Purplle Store Intelligence API Platform is operational.",
+        "docs": "/docs",
+        "health": "/api/v1/health"
+    }
+
 @app.on_event("startup")
 def on_startup():
     import os
