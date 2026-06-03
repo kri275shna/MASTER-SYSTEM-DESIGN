@@ -22,10 +22,33 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
 
+class MockPubSub:
+    def __init__(self, parent):
+        self.parent = parent
+        self.channels = set()
+        self.queue = []
+
+    def subscribe(self, *args, **kwargs):
+        for arg in args:
+            self.channels.add(arg)
+
+    def get_message(self, *args, **kwargs):
+        if self.queue:
+            msg = self.queue.pop(0)
+            return {"type": "message", "channel": msg["channel"], "data": msg["data"]}
+        return None
+
+    def unsubscribe(self, *args, **kwargs):
+        for arg in args:
+            self.channels.discard(arg)
+        if not self.channels:
+            if self in self.parent.pubsubs:
+                self.parent.pubsubs.remove(self)
+
 class MockRedis:
     def __init__(self):
         self.store = {}
-        self.pubsub_channels = {}
+        self.pubsubs = []
 
     def get(self, key):
         return self.store.get(key)
@@ -58,17 +81,17 @@ class MockRedis:
         return True
 
     def publish(self, channel, message):
-        if channel not in self.pubsub_channels:
-            self.pubsub_channels[channel] = []
-        self.pubsub_channels[channel].append(message)
-        return 1
+        count = 0
+        for ps in self.pubsubs:
+            if channel in ps.channels:
+                ps.queue.append({"channel": channel, "data": message})
+                count += 1
+        return count
 
     def pubsub(self):
-        class MockPubSub:
-            def subscribe(self, *args, **kwargs): pass
-            def get_message(self, *args, **kwargs): return None
-            def unsubscribe(self, *args, **kwargs): pass
-        return MockPubSub()
+        ps = MockPubSub(self)
+        self.pubsubs.append(ps)
+        return ps
 
 # Redis Setup (Mocked in test mode or if server is unreachable)
 if os.getenv("TESTING") == "True":
