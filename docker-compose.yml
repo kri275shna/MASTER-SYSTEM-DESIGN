@@ -39,6 +39,22 @@ services:
       - db
       - redis
 
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: purplle-worker
+    restart: always
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/store_intelligence
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=purplle-super-secret-key-change-in-production-12345
+    command: python app/services/event_consumer.py
+    depends_on:
+      - db
+      - redis
+      - backend
+
   frontend:
     build:
       context: ./frontend

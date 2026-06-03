@@ -100,12 +100,18 @@ class Event(Base):
     __tablename__ = "events"
     
     id = Column(String(36), primary_key=True, default=generate_uuid)
+    event_id = Column(String(36), unique=True, nullable=False, index=True, default=generate_uuid)
     store_id = Column(String(36), ForeignKey("stores.id"), nullable=False, index=True)
     session_id = Column(String(36), ForeignKey("visitor_sessions.id"), nullable=True, index=True)
     camera_id = Column(String(36), ForeignKey("cameras.id"), nullable=True, index=True)
+    visitor_id = Column(String(255), nullable=True, index=True)
     event_type = Column(String(100), nullable=False, index=True)  # ENTRY, EXIT, ZONE_ENTER, ZONE_EXIT, etc.
     zone_id = Column(String(36), ForeignKey("zones.id"), nullable=True, index=True)
     timestamp = Column(DateTime, nullable=False, index=True)
+    dwell_ms = Column(Integer, default=0, nullable=True)
+    is_staff = Column(Boolean, default=False, nullable=True)
+    confidence = Column(Float, default=1.0, nullable=True)
+    event_metadata = Column("metadata", JSON, nullable=True)
     payload = Column(JSON, nullable=True)  # Event-specific detailed data
     processed_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     

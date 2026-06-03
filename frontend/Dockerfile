@@ -12,7 +12,7 @@ RUN npm run build
 # Stage 2: Serve the Static Site via Nginx
 FROM nginx:alpine
 
-COPY --from=builder /app/dist /usr/share/nginx/html
+COPY --from=builder /app/out /usr/share/nginx/html
 
 # Copy custom nginx config if needed, or default is fine
 EXPOSE 3000

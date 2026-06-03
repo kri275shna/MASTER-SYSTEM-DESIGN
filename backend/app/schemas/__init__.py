@@ -4,3 +4,4 @@ from app.schemas.schemas import (
     StoreCreate, StoreResponse, CameraCreate, CameraResponse, ZoneCreate, ZoneResponse,
     MetricsResponse, HeatmapItem, FunnelStage, FunnelTransitionTimes, FunnelResponse, AnomalyResponse
 )
+from app.schemas.event import EventSchema

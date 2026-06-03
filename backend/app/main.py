@@ -1,6 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import logging
+from app.core.logging import setup_logging
+
+# Initialize structlog configurations
+setup_logging()
+
 from app.core.config import settings
 from app.core.database import engine, Base, SessionLocal
 from app.api.routes import auth, events, stores, health

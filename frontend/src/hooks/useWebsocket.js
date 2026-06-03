@@ -7,7 +7,7 @@ export function useWebsocket(storeId, onEventReceived) {
   const reconnectAttemptsRef = useRef(0)
 
   const connect = useCallback(() => {
-    if (!storeId) return
+    if (!storeId || typeof window === 'undefined') return
 
     // Clean up existing connections
     if (socketRef.current) {
@@ -17,7 +17,9 @@ export function useWebsocket(storeId, onEventReceived) {
     setStatus('CONNECTING')
     
     // Resolve ws/wss protocol and host dynamically from backend URL configuration
-    const apiHost = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+    const apiHost = (typeof process !== 'undefined' && process.env && process.env.NEXT_PUBLIC_API_URL) || 
+                    (typeof window !== 'undefined' ? window.location.protocol + '//' + window.location.hostname + ':8000' : 'http://localhost:8000')
+    
     const protocol = apiHost.startsWith('https:') ? 'wss:' : 'ws:'
     const host = apiHost.replace(/^https?:\/\//, '')
     const wsUrl = `${protocol}//${host}/api/v1/events/stores/${storeId}/events/stream`
