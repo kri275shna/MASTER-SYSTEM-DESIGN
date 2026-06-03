@@ -32,11 +32,13 @@ ENV/
 env/
 .env
 
-# Testing / coverage
+# Testing / coverage / databases
 .pytest_cache/
 .coverage
 htmlcov/
 test.db
+*.db
+store.db
 
 # Frontend dependency directories
 node_modules/
