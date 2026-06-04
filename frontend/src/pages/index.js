@@ -40,7 +40,9 @@ export default function IndexPage() {
     setUserRole(localStorage.getItem('user_role') || '')
     
     const resolvedHost = (typeof process !== 'undefined' && process.env && process.env.NEXT_PUBLIC_API_URL) || 
-                         (typeof window !== 'undefined' ? window.location.protocol + '//' + window.location.hostname + ':8000' : 'http://localhost:8000')
+                         (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
+                           ? 'https://master-system-design.onrender.com'
+                           : 'http://localhost:8000')
     setApiHost(resolvedHost)
   }, [])
 
